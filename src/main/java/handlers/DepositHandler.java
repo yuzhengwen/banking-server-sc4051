@@ -1,41 +1,45 @@
-// handlers/OpenHandler.java
 package handlers;
 
-import model.*;
+import model.AccountStore;
+import model.CallbackRegistry;
+import model.Currency;
+import model.Message;
 import util.Marshaller;
 
 import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 
-public class OpenHandler extends BaseHandler {
-
-    public OpenHandler(AccountStore store, CallbackRegistry callbacks) {
+public class DepositHandler extends BaseHandler{
+    public DepositHandler(AccountStore store, CallbackRegistry callbacks) {
         super(store, callbacks);
     }
 
+    @Override
     public byte[] handle(Message req, DatagramSocket socket) {
-        // Wrap req.body in a ByteBuffer so we can read fields from it.
-        // The fields must be read in the exact order the C++ client wrote them.
-        // For OPEN_ACCOUNT the C++ client sends:
-        //   currency(1B) | initialBalance(float32) | name(str) | password(str)
+        // accountNumber (int32) | currency (byte) | amount (float32) | name (string) | password (string)
+
         ByteBuffer body = ByteBuffer.wrap(req.body);
 
         try {
+            int accountNo = Marshaller.readInt(body);
+
             byte currByte = util.Marshaller.readByte(body);
             Currency currency = Currency.from(currByte);
-            float balance = Marshaller.readFloat(body);
+
+            float amount = Marshaller.readFloat(body);
+
             String name = Marshaller.readString(body);
             String password = Marshaller.readString(body);
 
             // Delegate the actual work to AccountStore
-            int accountNo = store.openAccount(name, password, currency, balance);
+            float balance = store.depositWithdraw(accountNo, name, password, currency, amount);
 
             // Notify any monitoring clients
             callbacks.pushUpdate(socket, accountNo, currency, balance);
 
-            // Build the success reply body: just the new account number (4 bytes)
+            // success reply: account balance (float32)
             ByteBuffer replyBody = ByteBuffer.allocate(4);
-            util.Marshaller.writeInt(replyBody, accountNo);
+            util.Marshaller.writeFloat(replyBody, balance);
 
             // Wrap in a Message and serialise to bytes
             return new Message(req.requestId, req.opcode,

@@ -1,41 +1,38 @@
-// handlers/OpenHandler.java
 package handlers;
 
-import model.*;
+import model.AccountStore;
+import model.CallbackRegistry;
+import model.Message;
 import util.Marshaller;
 
 import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 
-public class OpenHandler extends BaseHandler {
-
-    public OpenHandler(AccountStore store, CallbackRegistry callbacks) {
+public class CloseHandler extends BaseHandler {
+    public CloseHandler(AccountStore store, CallbackRegistry callbacks) {
         super(store, callbacks);
     }
 
+    @Override
     public byte[] handle(Message req, DatagramSocket socket) {
-        // Wrap req.body in a ByteBuffer so we can read fields from it.
-        // The fields must be read in the exact order the C++ client wrote them.
-        // For OPEN_ACCOUNT the C++ client sends:
-        //   currency(1B) | initialBalance(float32) | name(str) | password(str)
-        ByteBuffer body = ByteBuffer.wrap(req.body);
+        // accountNumber (int32) | name (string) | password (string)
 
+        ByteBuffer body = ByteBuffer.wrap(req.body);
         try {
-            byte currByte = util.Marshaller.readByte(body);
-            Currency currency = Currency.from(currByte);
-            float balance = Marshaller.readFloat(body);
+            int accountNo = Marshaller.readInt(body);
+
             String name = Marshaller.readString(body);
             String password = Marshaller.readString(body);
 
             // Delegate the actual work to AccountStore
-            int accountNo = store.openAccount(name, password, currency, balance);
+            String status = store.closeAccount(accountNo, name, password);
 
-            // Notify any monitoring clients
-            callbacks.pushUpdate(socket, accountNo, currency, balance);
-
-            // Build the success reply body: just the new account number (4 bytes)
+            // success reply: account balance (float32)
             ByteBuffer replyBody = ByteBuffer.allocate(4);
-            util.Marshaller.writeInt(replyBody, accountNo);
+            if (status == null)
+                util.Marshaller.writeInt(replyBody, 0);  // success, balance is not relevant
+            else
+                throw new Exception(status);
 
             // Wrap in a Message and serialise to bytes
             return new Message(req.requestId, req.opcode,

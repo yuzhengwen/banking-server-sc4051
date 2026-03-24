@@ -35,9 +35,13 @@ public class AccountStore {
         return null;   // null means success
     }
 
-    // depositWithdraw — positive amount = deposit, negative = withdraw.
-    // Throws IllegalArgumentException on any error so the handler can
-    // catch it and send an error reply.
+    /**
+     *
+     * @param no Account number
+     * @param currency Currency must match the account's currency, otherwise it's an error.
+     * @param amount Amount to deposit (positive) or withdraw (negative)
+     * @return Account Balance
+     */
     public synchronized float depositWithdraw(int no, String name, String password,
                                               Currency currency, float amount) {
         Account acc = accounts.get(no);

@@ -1,7 +1,6 @@
 package util;
 
 import model.*;
-import util.Marshaller;
 
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -10,10 +9,8 @@ import java.util.Scanner;
 /**
  * Standalone Java test client for verifying the server without the C++ client.
  * Sends real UDP packets using the same wire format the C++ client will use.
- *
  * Usage:
  *   java -cp out TestClient [serverHost] [serverPort]
- *
  * Examples:
  *   java -cp out TestClient localhost 2222
  *   java -cp out TestClient 192.168.1.5 2222
@@ -91,6 +88,7 @@ public class TestClient {
     /** Close account. Returns true on success. */
     public boolean closeAccount(int accountNo, String name, String password) {
         try {
+            // accountNumber (int32) | name (string) | password (string)
             ByteBuffer body = ByteBuffer.allocate(4 + 2 + name.length() + 2 + password.length() + 10);
             Marshaller.writeInt(body, accountNo);
             Marshaller.writeString(body, name);
@@ -123,6 +121,7 @@ public class TestClient {
     public float depositWithdraw(int accountNo, String name, String password,
                                  Currency currency, float amount) {
         try {
+            // accountNumber (int32) | currency (byte) | amount (float32) | name (string) | password (string)
             ByteBuffer body = ByteBuffer.allocate(4 + 1 + 4 + 2 + name.length() + 2 + password.length() + 10);
             Marshaller.writeInt(body, accountNo);
             Marshaller.writeByte(body, currency.code);

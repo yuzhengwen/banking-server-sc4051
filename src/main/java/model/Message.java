@@ -1,40 +1,41 @@
 // model/Message.java — explained line by line
 
 package model;
+
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 public class Message {
 
     // message types (request, reply, callback)
-    public static final byte TYPE_REQUEST  = 0;
-    public static final byte TYPE_REPLY    = 1;
+    public static final byte TYPE_REQUEST = 0;
+    public static final byte TYPE_REPLY = 1;
     public static final byte TYPE_CALLBACK = 2;
     // status codes (only replies)
-    public static final byte STATUS_OK     = 0;
-    public static final byte STATUS_ERROR  = 1;
-    public static final int  HEADER_SIZE   = 12;
+    public static final byte STATUS_OK = 0;
+    public static final byte STATUS_ERROR = 1;
+    public static final int HEADER_SIZE = 12;
 
     // A message is immutable once created
-    public final int    requestId;
+    public final int requestId;
     public final OpCode opcode;
-    public final byte   msgType;
-    public final byte   status;
+    public final byte msgType;
+    public final byte status;
     public final byte[] body;
 
     // These two are NOT part of the wire format.
     // The server fills them in after calling recvfrom so handlers
     // know who to reply to.
     public InetAddress senderAddress;
-    public int         senderPort;
+    public int senderPort;
 
     public Message(int requestId, OpCode opcode, byte msgType,
                    byte status, byte[] body) {
         this.requestId = requestId;
-        this.opcode    = opcode;
-        this.msgType   = msgType;
-        this.status    = status;
-        this.body      = body != null ? body : new byte[0];
+        this.opcode = opcode;
+        this.msgType = msgType;
+        this.status = status;
+        this.body = body != null ? body : new byte[0];
     }
 
     // toBytes() — serialize this Message into a flat byte array.
@@ -57,13 +58,13 @@ public class Message {
     // and reads fields in the exact same order as toBytes() wrote them.
     public static Message fromBytes(byte[] data) {
         ByteBuffer buf = ByteBuffer.wrap(data);
-        int    requestId = buf.getInt();   // reads bytes 0–3
-        byte   opByte   = buf.get();       // reads byte  4
-        byte   msgType  = buf.get();       // reads byte  5
-        byte   status   = buf.get();       // reads byte  6
+        int requestId = buf.getInt();   // reads bytes 0–3
+        byte opByte = buf.get();       // reads byte  4
+        byte msgType = buf.get();       // reads byte  5
+        byte status = buf.get();       // reads byte  6
         buf.get();                         // reads byte  7 (reserved, discard)
-        int    bodyLen  = buf.getInt();    // reads bytes 8–11
-        byte[] body     = new byte[bodyLen];
+        int bodyLen = buf.getInt();    // reads bytes 8–11
+        byte[] body = new byte[bodyLen];
         buf.get(body);                     // reads the next bodyLen bytes
         return new Message(requestId, OpCode.from(opByte), msgType, status, body);
     }
