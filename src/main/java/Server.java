@@ -19,13 +19,15 @@ public class Server {
         boolean atMostOnce = args.length < 2 || args[1].equalsIgnoreCase("amo");
         double lossProb = args.length > 2 ? Double.parseDouble(args[2]) : 0.0;
 
+        // create the server socket
+        DatagramSocket socket = new DatagramSocket(port);
+
         // Create the shared objects — one instance of each for the whole server lifetime
         AccountStore store = new AccountStore();
-        CallbackRegistry callbacks = new CallbackRegistry();
+        CallbackRegistry callbacks = new CallbackRegistry(store, socket);
         DedupFilter dedup = new DedupFilter();
         Dispatcher dispatcher = new Dispatcher(store, callbacks, dedup, atMostOnce);
 
-        DatagramSocket socket = new DatagramSocket(port);
         LossSimulator lossSim = new LossSimulator(socket, lossProb);
         byte[] buf = new byte[65535]; // max UDP packet size
 

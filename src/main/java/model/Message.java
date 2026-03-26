@@ -4,6 +4,7 @@ package model;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class Message {
 
@@ -11,16 +12,14 @@ public class Message {
     public static final byte TYPE_REQUEST = 0;
     public static final byte TYPE_REPLY = 1;
     public static final byte TYPE_CALLBACK = 2;
-    // status codes (only replies)
-    public static final byte STATUS_OK = 0;
-    public static final byte STATUS_ERROR = 1;
+
     public static final int HEADER_SIZE = 12;
 
     // A message is immutable once created
     public final int requestId;
     public final OpCode opcode;
     public final byte msgType;
-    public final byte status;
+    public final StatusCode status;
     public final byte[] body;
 
     // These two are NOT part of the wire format.
@@ -30,7 +29,7 @@ public class Message {
     public int senderPort;
 
     public Message(int requestId, OpCode opcode, byte msgType,
-                   byte status, byte[] body) {
+                   StatusCode status, byte[] body) {
         this.requestId = requestId;
         this.opcode = opcode;
         this.msgType = msgType;
@@ -47,7 +46,7 @@ public class Message {
         buf.putInt(requestId);   // writes 4 bytes, cursor now at 4
         buf.put(opcode.code);    // writes 1 byte, cursor at 5
         buf.put(msgType);        // writes 1 byte, cursor at 6
-        buf.put(status);         // writes 1 byte, cursor at 7
+        buf.put(status.code);         // writes 1 byte, cursor at 7
         buf.put((byte) 0);       // reserved byte, cursor at 8
         buf.putInt(body.length); // writes 4 bytes, cursor at 12
         buf.put(body);           // writes body.length bytes
@@ -66,6 +65,17 @@ public class Message {
         int bodyLen = buf.getInt();    // reads bytes 8–11
         byte[] body = new byte[bodyLen];
         buf.get(body);                     // reads the next bodyLen bytes
-        return new Message(requestId, OpCode.from(opByte), msgType, status, body);
+        return new Message(requestId, OpCode.from(opByte), msgType, StatusCode.from(status), body);
+    }
+
+    public void print(){
+        String sb = "Message {\n" +
+                "  requestId: " + requestId + "\n" +
+                "  opcode: " + opcode + "\n" +
+                "  msgType: " + msgType + "\n" +
+                "  status: " + status + "\n" +
+                "  body: " + Arrays.toString(body) + "\n" +
+                "}";
+        System.out.println(sb);
     }
 }

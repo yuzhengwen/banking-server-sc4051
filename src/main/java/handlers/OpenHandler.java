@@ -28,25 +28,26 @@ public class OpenHandler extends BaseHandler {
             String password = Marshaller.readString(body);
 
             // Delegate the actual work to AccountStore
-            int accountNo = store.openAccount(name, password, currency, balance);
+            OpResponse<Account> res = store.openAccount(name, password, currency, balance);
 
-            // Notify any monitoring clients
-            callbacks.pushUpdate(socket, accountNo, currency, balance);
-
-            // Build the success reply body: just the new account number (4 bytes)
-            ByteBuffer replyBody = ByteBuffer.allocate(4);
-            util.Marshaller.writeInt(replyBody, accountNo);
-
-            // Wrap in a Message and serialise to bytes
+            if (res.isSuccess()) {
+                // Build the success reply body: just the new account number (4 bytes)
+                ByteBuffer replyBody = ByteBuffer.allocate(4);
+                util.Marshaller.writeInt(replyBody, res.data().accountNumber);
+                // Wrap in a Message and serialise to bytes
+                return new Message(req.requestId, req.opcode,
+                        Message.TYPE_REPLY, StatusCode.STATUS_OK,
+                        replyBody.array()).toBytes();
+            }
             return new Message(req.requestId, req.opcode,
-                    Message.TYPE_REPLY, Message.STATUS_OK,
-                    replyBody.array()).toBytes();
+                    Message.TYPE_REPLY, res.status(),
+                    null).toBytes();
 
         } catch (Exception e) {
             // Any error becomes a STATUS_ERROR reply with the error string as body.
             // The client can read the string and display it to the user.
             return new Message(req.requestId, req.opcode,
-                    Message.TYPE_REPLY, Message.STATUS_ERROR,
+                    Message.TYPE_REPLY, StatusCode.ERR_INTERNAL,
                     Marshaller.errorBody(e.getMessage())).toBytes();
         }
     }

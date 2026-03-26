@@ -67,7 +67,7 @@ public class Dispatcher {
             case QUERY_BALANCE -> queryHandler.handle(req, socket);
             case TRANSFER_FUNDS -> transferHandler.handle(req, socket);
             default -> new Message(req.requestId, req.opcode,
-                    Message.TYPE_REPLY, Message.STATUS_ERROR,
+                    Message.TYPE_REPLY, StatusCode.ERR_INTERNAL,
                     Marshaller.errorBody("Unknown opcode.")).toBytes();
         };
     }

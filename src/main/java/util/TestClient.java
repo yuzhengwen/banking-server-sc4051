@@ -10,25 +10,25 @@ import java.util.Scanner;
  * Standalone Java test client for verifying the server without the C++ client.
  * Sends real UDP packets using the same wire format the C++ client will use.
  * Usage:
- *   java -cp out TestClient [serverHost] [serverPort]
+ * java -cp out TestClient [serverHost] [serverPort]
  * Examples:
- *   java -cp out TestClient localhost 2222
- *   java -cp out TestClient 192.168.1.5 2222
+ * java -cp out TestClient localhost 2222
+ * java -cp out TestClient 192.168.1.5 2222
  */
 public class TestClient {
 
-    private static final int    TIMEOUT_MS  = 3000;
-    private static final int    BUFFER_SIZE = 65535;
+    private static final int TIMEOUT_MS = 3000;
+    private static final int BUFFER_SIZE = 65535;
 
     private final DatagramSocket socket;
-    private final InetAddress    serverAddr;
-    private final int            serverPort;
-    private       int            requestId  = 1;
+    private final InetAddress serverAddr;
+    private final int serverPort;
+    private int requestId = 1;
 
     public TestClient(String host, int port) throws Exception {
         this.serverAddr = InetAddress.getByName(host);
         this.serverPort = port;
-        this.socket     = new DatagramSocket();
+        this.socket = new DatagramSocket();
         this.socket.setSoTimeout(TIMEOUT_MS);
         System.out.println("TestClient connected to " + host + ":" + port);
     }
@@ -36,6 +36,9 @@ public class TestClient {
     // ------------------------------------------------------------------ send/receive
 
     private Message send(byte[] packet) throws Exception {
+        System.out.println("--- Sending request ---");
+        printRawMessage(packet);
+
         DatagramPacket dp = new DatagramPacket(packet, packet.length, serverAddr, serverPort);
         socket.send(dp);
 
@@ -50,7 +53,9 @@ public class TestClient {
 
     // ------------------------------------------------------------------ operations
 
-    /** Open account. Returns assigned account number, or -1 on error. */
+    /**
+     * Open account. Returns assigned account number, or -1 on error.
+     */
     public int openAccount(String name, String password, Currency currency, float balance) {
         try {
             // Body: currency(1B) | balance(float32) | name(str) | password(str)
@@ -64,16 +69,17 @@ public class TestClient {
             body.get(bodyBytes);
 
             byte[] pkt = new Message(requestId++, OpCode.OPEN_ACCOUNT,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, bodyBytes).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, bodyBytes).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status == Message.STATUS_OK) {
+            reply.print();
+            if (reply.status == StatusCode.STATUS_OK) {
                 int accountNo = ByteBuffer.wrap(reply.body).getInt();
                 System.out.printf("[OK] Opened account %d for %s (%.2f %s)%n",
                         accountNo, name, balance, currency);
                 return accountNo;
             } else {
-                System.err.println("[ERROR] openAccount: " + readErrorString(reply.body));
+                System.err.println("[ERROR] openAccount: " + readBody(reply.body));
                 return -1;
             }
         } catch (SocketTimeoutException e) {
@@ -85,7 +91,9 @@ public class TestClient {
         }
     }
 
-    /** Close account. Returns true on success. */
+    /**
+     * Close account. Returns true on success.
+     */
     public boolean closeAccount(int accountNo, String name, String password) {
         try {
             // accountNumber (int32) | name (string) | password (string)
@@ -98,14 +106,15 @@ public class TestClient {
             body.get(bodyBytes);
 
             byte[] pkt = new Message(requestId++, OpCode.CLOSE_ACCOUNT,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, bodyBytes).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, bodyBytes).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status == Message.STATUS_OK) {
-                System.out.println("[OK] " + readErrorString(reply.body));
+            reply.print();
+            if (reply.status == StatusCode.STATUS_OK) {
+                System.out.println("[OK] " + readBody(reply.body));
                 return true;
             } else {
-                System.err.println("[ERROR] closeAccount: " + readErrorString(reply.body));
+                System.err.println("[ERROR] closeAccount: " + readBody(reply.body));
                 return false;
             }
         } catch (SocketTimeoutException e) {
@@ -117,7 +126,9 @@ public class TestClient {
         }
     }
 
-    /** Deposit (positive) or withdraw (negative). Returns new balance, or Float.NaN on error. */
+    /**
+     * Deposit (positive) or withdraw (negative). Returns new balance, or Float.NaN on error.
+     */
     public float depositWithdraw(int accountNo, String name, String password,
                                  Currency currency, float amount) {
         try {
@@ -133,15 +144,16 @@ public class TestClient {
             body.get(bodyBytes);
 
             byte[] pkt = new Message(requestId++, OpCode.DEPOSIT_WITHDRAW,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, bodyBytes).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, bodyBytes).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status == Message.STATUS_OK) {
+            reply.print();
+            if (reply.status == StatusCode.STATUS_OK) {
                 float newBal = ByteBuffer.wrap(reply.body).getFloat();
                 System.out.printf("[OK] New balance for account %d: %.2f%n", accountNo, newBal);
                 return newBal;
             } else {
-                System.err.println("[ERROR] depositWithdraw: " + readErrorString(reply.body));
+                System.err.println("[ERROR] depositWithdraw: " + readBody(reply.body));
                 return Float.NaN;
             }
         } catch (SocketTimeoutException e) {
@@ -153,7 +165,9 @@ public class TestClient {
         }
     }
 
-    /** Query balance (idempotent). Returns balance or Float.NaN on error. */
+    /**
+     * Query balance (idempotent). Returns balance or Float.NaN on error.
+     */
     public float queryBalance(int accountNo, String name, String password) {
         try {
             ByteBuffer body = ByteBuffer.allocate(4 + 2 + name.length() + 2 + password.length() + 10);
@@ -165,15 +179,16 @@ public class TestClient {
             body.get(bodyBytes);
 
             byte[] pkt = new Message(requestId++, OpCode.QUERY_BALANCE,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, bodyBytes).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, bodyBytes).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status == Message.STATUS_OK) {
+            reply.print();
+            if (reply.status == StatusCode.STATUS_OK) {
                 float bal = ByteBuffer.wrap(reply.body).getFloat();
                 System.out.printf("[OK] Balance for account %d: %.2f%n", accountNo, bal);
                 return bal;
             } else {
-                System.err.println("[ERROR] queryBalance: " + readErrorString(reply.body));
+                System.err.println("[ERROR] queryBalance: " + readBody(reply.body));
                 return Float.NaN;
             }
         } catch (SocketTimeoutException e) {
@@ -185,7 +200,9 @@ public class TestClient {
         }
     }
 
-    /** Transfer funds. Returns new source balance or Float.NaN on error. */
+    /**
+     * Transfer funds. Returns new source balance or Float.NaN on error.
+     */
     public float transfer(int srcNo, int dstNo, String name, String password, float amount) {
         try {
             ByteBuffer body = ByteBuffer.allocate(4 + 4 + 4 + 2 + name.length() + 2 + password.length() + 10);
@@ -199,15 +216,16 @@ public class TestClient {
             body.get(bodyBytes);
 
             byte[] pkt = new Message(requestId++, OpCode.TRANSFER_FUNDS,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, bodyBytes).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, bodyBytes).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status == Message.STATUS_OK) {
+            reply.print();
+            if (reply.status == StatusCode.STATUS_OK) {
                 float newBal = ByteBuffer.wrap(reply.body).getFloat();
                 System.out.printf("[OK] Transfer done. New balance for account %d: %.2f%n", srcNo, newBal);
                 return newBal;
             } else {
-                System.err.println("[ERROR] transfer: " + readErrorString(reply.body));
+                System.err.println("[ERROR] transfer: " + readBody(reply.body));
                 return Float.NaN;
             }
         } catch (SocketTimeoutException e) {
@@ -219,21 +237,23 @@ public class TestClient {
         }
     }
 
-    /** Register for monitoring. Blocks for the interval, printing any callbacks received. */
+    /**
+     * Register for monitoring. Blocks for the interval, printing any callbacks received.
+     */
     public void registerMonitor(int intervalSeconds) {
         try {
             ByteBuffer body = ByteBuffer.allocate(4);
             Marshaller.writeInt(body, intervalSeconds);
 
             byte[] pkt = new Message(requestId++, OpCode.REGISTER_MONITOR,
-                    Message.TYPE_REQUEST, Message.STATUS_OK, body.array()).toBytes();
+                    Message.TYPE_REQUEST, StatusCode.STATUS_OK, body.array()).toBytes();
 
             Message reply = send(pkt);
-            if (reply.status != Message.STATUS_OK) {
-                System.err.println("[ERROR] registerMonitor: " + readErrorString(reply.body));
+            if (reply.status != StatusCode.STATUS_OK) {
+                System.err.println("[ERROR] registerMonitor: " + readBody(reply.body));
                 return;
             }
-            System.out.println("[OK] " + readErrorString(reply.body));
+            System.out.println("[OK] " + readBody(reply.body));
             System.out.println("[Monitor] Waiting for callbacks for " + intervalSeconds + "s ...");
 
             // Listen for callbacks until the interval expires
@@ -258,7 +278,8 @@ public class TestClient {
 
     // ------------------------------------------------------------------ helpers
 
-    private String readErrorString(byte[] body) {
+    private String readBody(byte[] body) {
+        if (body == null) return "Empty body";
         try {
             return Marshaller.readString(ByteBuffer.wrap(body));
         } catch (Exception e) {
@@ -271,14 +292,22 @@ public class TestClient {
             // callback body: accountNo(int32) | currency(1B) | newBalance(float32)
             // skip 12-byte header
             ByteBuffer buf = ByteBuffer.wrap(data, 12, data.length - 12);
-            int   accountNo  = buf.getInt();
-            byte  currByte   = buf.get();
+            int accountNo = buf.getInt();
+            byte currByte = buf.get();
             float newBalance = Float.intBitsToFloat(buf.getInt());
             Currency currency = Currency.from(currByte);
             System.out.printf("[Callback] Account %d updated: %.2f %s%n",
                     accountNo, newBalance, currency);
         } catch (Exception e) {
             System.err.println("[Callback] Could not parse callback: " + e.getMessage());
+        }
+    }
+
+    private void printRawMessage(byte[] data) {
+        try {
+            Message.fromBytes(data).print();
+        } catch (Exception e) {
+            System.out.print("Error printing:" + e);
         }
     }
 
@@ -290,9 +319,9 @@ public class TestClient {
         // Test 1: open accounts
         System.out.println("\n--- Test 1: Open accounts ---");
         int aliceNo = client.openAccount("Alice", "pass1234", Currency.SGD, 1000.0f);
-        int bobNo   = client.openAccount("Bob",   "pass5678", Currency.SGD, 500.0f);
+        int bobNo = client.openAccount("Bob", "pass5678", Currency.SGD, 500.0f);
         assert aliceNo > 0 : "Alice account creation failed";
-        assert bobNo   > 0 : "Bob account creation failed";
+        assert bobNo > 0 : "Bob account creation failed";
 
         // Test 2: query balance (idempotent)
         System.out.println("\n--- Test 2: Query balance (idempotent) ---");
@@ -358,37 +387,58 @@ public class TestClient {
 
             if (choice == 0) break;
             else if (choice == 1) {
-                System.out.print("Name: ");      String name = sc.nextLine();
-                System.out.print("Password: ");  String pwd  = sc.nextLine();
-                System.out.print("Currency (SGD/USD/EUR/GBP): "); Currency cur = Currency.valueOf(sc.nextLine().toUpperCase());
-                System.out.print("Initial balance: "); float bal = Float.parseFloat(sc.nextLine());
+                System.out.print("Name: ");
+                String name = sc.nextLine();
+                System.out.print("Password: ");
+                String pwd = sc.nextLine();
+                System.out.print("Currency (SGD/USD/EUR/GBP): ");
+                Currency cur = Currency.valueOf(sc.nextLine().toUpperCase());
+                System.out.print("Initial balance: ");
+                float bal = Float.parseFloat(sc.nextLine());
                 client.openAccount(name, pwd, cur, bal);
             } else if (choice == 2) {
-                System.out.print("Account no: "); int no = Integer.parseInt(sc.nextLine());
-                System.out.print("Name: ");       String name = sc.nextLine();
-                System.out.print("Password: ");   String pwd  = sc.nextLine();
+                System.out.print("Account no: ");
+                int no = Integer.parseInt(sc.nextLine());
+                System.out.print("Name: ");
+                String name = sc.nextLine();
+                System.out.print("Password: ");
+                String pwd = sc.nextLine();
                 client.closeAccount(no, name, pwd);
             } else if (choice == 3) {
-                System.out.print("Account no: "); int no = Integer.parseInt(sc.nextLine());
-                System.out.print("Name: ");       String name = sc.nextLine();
-                System.out.print("Password: ");   String pwd  = sc.nextLine();
-                System.out.print("Currency: ");   Currency cur = Currency.valueOf(sc.nextLine().toUpperCase());
-                System.out.print("Amount (+deposit / -withdraw): "); float amt = Float.parseFloat(sc.nextLine());
+                System.out.print("Account no: ");
+                int no = Integer.parseInt(sc.nextLine());
+                System.out.print("Name: ");
+                String name = sc.nextLine();
+                System.out.print("Password: ");
+                String pwd = sc.nextLine();
+                System.out.print("Currency: ");
+                Currency cur = Currency.valueOf(sc.nextLine().toUpperCase());
+                System.out.print("Amount (+deposit / -withdraw): ");
+                float amt = Float.parseFloat(sc.nextLine());
                 client.depositWithdraw(no, name, pwd, cur, amt);
             } else if (choice == 4) {
-                System.out.print("Account no: "); int no = Integer.parseInt(sc.nextLine());
-                System.out.print("Name: ");       String name = sc.nextLine();
-                System.out.print("Password: ");   String pwd  = sc.nextLine();
+                System.out.print("Account no: ");
+                int no = Integer.parseInt(sc.nextLine());
+                System.out.print("Name: ");
+                String name = sc.nextLine();
+                System.out.print("Password: ");
+                String pwd = sc.nextLine();
                 client.queryBalance(no, name, pwd);
             } else if (choice == 5) {
-                System.out.print("Source account no: "); int src = Integer.parseInt(sc.nextLine());
-                System.out.print("Dest account no: ");   int dst = Integer.parseInt(sc.nextLine());
-                System.out.print("Amount: ");             float amt = Float.parseFloat(sc.nextLine());
-                System.out.print("Your name: ");          String name = sc.nextLine();
-                System.out.print("Your password: ");      String pwd  = sc.nextLine();
+                System.out.print("Source account no: ");
+                int src = Integer.parseInt(sc.nextLine());
+                System.out.print("Dest account no: ");
+                int dst = Integer.parseInt(sc.nextLine());
+                System.out.print("Amount: ");
+                float amt = Float.parseFloat(sc.nextLine());
+                System.out.print("Your name: ");
+                String name = sc.nextLine();
+                System.out.print("Your password: ");
+                String pwd = sc.nextLine();
                 client.transfer(src, dst, name, pwd, amt);
             } else if (choice == 6) {
-                System.out.print("Monitor interval (seconds): "); int secs = Integer.parseInt(sc.nextLine());
+                System.out.print("Monitor interval (seconds): ");
+                int secs = Integer.parseInt(sc.nextLine());
                 client.registerMonitor(secs);
             }
         }
@@ -399,7 +449,7 @@ public class TestClient {
 
     public static void main(String[] args) throws Exception {
         String host = args.length > 0 ? args[0] : "localhost";
-        int    port = args.length > 1 ? Integer.parseInt(args[1]) : 2222;
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : 2222;
         String mode = args.length > 2 ? args[2] : "interactive"; // "test" or "interactive"
 
         TestClient client = new TestClient(host, port);
