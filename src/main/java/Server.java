@@ -19,8 +19,15 @@ public class Server {
         boolean atMostOnce = args.length < 2 || args[1].equalsIgnoreCase("amo");
         double lossProb = args.length > 2 ? Double.parseDouble(args[2]) : 0.0;
 
+        System.out.println("=== Distributed Banking Server ===");
+        System.out.println("Port      : " + port);
+        System.out.println("Semantics : " + (atMostOnce ? "at-most-once" : "at-least-once"));
+        System.out.printf("Loss prob : %.0f%%%n", lossProb * 100);
+        System.out.println("==================================");
+
         // create the server socket
         DatagramSocket socket = new DatagramSocket(port);
+        LossSimulator lossSim = new LossSimulator(socket, lossProb);
 
         // Create the shared objects — one instance of each for the whole server lifetime
         AccountStore store = new AccountStore();
@@ -28,7 +35,6 @@ public class Server {
         DedupFilter dedup = new DedupFilter();
         Dispatcher dispatcher = new Dispatcher(store, callbacks, dedup, atMostOnce);
 
-        LossSimulator lossSim = new LossSimulator(socket, lossProb);
         byte[] buf = new byte[65535]; // max UDP packet size
 
         System.out.println("Listening on port " + port);
@@ -60,6 +66,10 @@ public class Server {
                     replyBytes, replyBytes.length,
                     packet.getAddress(), packet.getPort());
             lossSim.send(reply);
+
+            if (dispatcher.shouldDropNext()) {
+                lossSim.dropNextReply();
+            }
         }
     }
 }

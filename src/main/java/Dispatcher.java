@@ -1,7 +1,9 @@
 // Dispatcher.java
+
 import handlers.*;
 import handlers.TransferHandler;
 import model.*;
+import util.LossSimulator;
 import util.Marshaller;
 
 import javax.swing.*;
@@ -10,26 +12,28 @@ import java.net.DatagramSocket;
 public class Dispatcher {
 
     // One instance of each handler, created once at startup and reused
-    private final OpenHandler     openHandler;
-    private final CloseHandler    closeHandler;
-    private final DepositHandler  depositHandler;
-    private final MonitorHandler  monitorHandler;
-    private final QueryHandler    queryHandler;
+    private final OpenHandler openHandler;
+    private final CloseHandler closeHandler;
+    private final DepositHandler depositHandler;
+    private final MonitorHandler monitorHandler;
+    private final QueryHandler queryHandler;
     private final TransferHandler transferHandler;
 
     private final DedupFilter dedupFilter;
-    private final boolean     atMostOnce;
+    private final boolean atMostOnce;
+
+    private boolean shouldDropNext;
 
     public Dispatcher(AccountStore store, CallbackRegistry callbacks,
                       DedupFilter dedupFilter, boolean atMostOnce) {
-        this.openHandler     = new OpenHandler(store, callbacks);
-        this.closeHandler    = new CloseHandler(store, callbacks);
+        this.openHandler = new OpenHandler(store, callbacks);
+        this.closeHandler = new CloseHandler(store, callbacks);
         this.depositHandler = new DepositHandler(store, callbacks);
         this.monitorHandler = new MonitorHandler(store, callbacks);
         this.queryHandler = new QueryHandler(store, callbacks);
         this.transferHandler = new TransferHandler(store, callbacks);
-        this.dedupFilter     = dedupFilter;
-        this.atMostOnce      = atMostOnce;
+        this.dedupFilter = dedupFilter;
+        this.atMostOnce = atMostOnce;
     }
 
     public byte[] dispatch(Message req, DatagramSocket socket) {
@@ -66,9 +70,21 @@ public class Dispatcher {
             case REGISTER_MONITOR -> monitorHandler.handle(req, socket);
             case QUERY_BALANCE -> queryHandler.handle(req, socket);
             case TRANSFER_FUNDS -> transferHandler.handle(req, socket);
+            case DROP_NEXT -> {
+                shouldDropNext = true;
+                yield new Message(req.requestId, req.opcode,
+                        Message.TYPE_REPLY, StatusCode.STATUS_OK,
+                        Marshaller.errorBody("Server will drop next reply.")).toBytes();
+            }
             default -> new Message(req.requestId, req.opcode,
                     Message.TYPE_REPLY, StatusCode.ERR_INTERNAL,
                     Marshaller.errorBody("Unknown opcode.")).toBytes();
         };
+    }
+
+    public boolean shouldDropNext() {
+        boolean temp = shouldDropNext;
+        shouldDropNext = false;
+        return temp;
     }
 }
