@@ -35,9 +35,9 @@ public class AccountStore {
      */
     public synchronized OpResponse<Integer> closeAccount(int no, String name, String password) {
         return get(no, name, password).map(acc -> {
-            accounts.remove(no);
+            Account removedAcc = accounts.remove(no);
             String callbackMessage = "Account " + no + " closed";
-            updateCallbacks.forEach(cb -> cb.accept(callbackMessage, null));
+            updateCallbacks.forEach(cb -> cb.accept(callbackMessage, OpResponse.ok(removedAcc)));
             return no;
         });
     }
@@ -75,7 +75,7 @@ public class AccountStore {
 
                     src.balance -= amount;
                     dst.balance += amount;
-                    updateCallbacks.forEach(cb -> cb.accept("Transfer Success! Account Balance Changed", OpResponse.ok(src)));
+                    updateCallbacks.forEach(cb -> cb.accept("Transferred " + amount + " to " + dstNo + " Success!", OpResponse.ok(src)));
                     return OpResponse.ok(src);
                 }
         );

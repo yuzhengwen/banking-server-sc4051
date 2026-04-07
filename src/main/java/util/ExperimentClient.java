@@ -1,29 +1,10 @@
+package util;
+
 import model.*;
-import util.Marshaller;
 
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.util.Scanner;
 
-/**
- * ExperimentClient — automated experiment runner + interactive menu.
- * <p>
- * Usage:
- * java -cp out ExperimentClient [host] [port] [auto|menu]
- * <p>
- * auto  — runs all 4 experiments automatically (prompts for server restarts)
- * menu  — interactive menu for manual testing (default)
- * <p>
- * Option 7 in the menu sends a DROP_NEXT control message to the server,
- * then immediately runs an operation of your choice. The server will execute
- * that operation normally but drop its reply, forcing the client to retry.
- * This demonstrates ALO vs AMO without restarting the server.
- * <p>
- * Server does NOT need --drop-next-transfer flag when using option 7.
- * Just start the server normally:
- * java -cp out Server 2222 amo 0.0
- * java -cp out Server 2222 alo 0.0
- */
 public class ExperimentClient {
 
     private static final int TIMEOUT_MS = 4000;
@@ -34,8 +15,6 @@ public class ExperimentClient {
     private final InetAddress serverAddr;
     private final int serverPort;
     private int requestId = 1;
-
-    // ------------------------------------------------------------------ constructor
 
     public ExperimentClient(String host, int port) throws Exception {
         this.serverAddr = InetAddress.getByName(host);
